@@ -2,7 +2,7 @@ name: Run Weather Bot Daily
 
 on:
   schedule:
-    - cron: '0 17 * * *'  # 매일 오전 8시 KST(UTC+9), UTC로 23시
+    - cron: '0 23 * * *'  # 매일 오전 8시 KST(UTC+9), UTC로 23시
   workflow_dispatch:
 
 jobs:

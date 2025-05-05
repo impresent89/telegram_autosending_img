@@ -32,4 +32,4 @@ jobs:
           fc-cache -fv
 
       - name: Run python script
-        run: python sendimg_telegram.py
+        run: python sendimgtxt_telegram.py

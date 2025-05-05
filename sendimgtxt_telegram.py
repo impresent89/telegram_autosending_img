@@ -21,19 +21,33 @@ BOT_TOKEN = '8065976731:AAGlFpQF_eUEkodhftNq_CwXn3J5qSQqhAo'
 CHAT_ID = '-4638489793'
 URL = 'https://weather.naver.com/today/02135105'
 
+async def send_telegram_text(bot_token, chat_id, temperature, weather_status):
+    try:
+        bot = telegram.Bot(token=bot_token)
+        message = f"<오늘의 날씨>\n현재 기온 : {temperature}\n날씨 상태 : {weather_status}"
+        async with bot:
+            await bot.send_message(chat_id=chat_id, text=message)
+        print("텍스트 메시지 전송 성공")
+        return True
+    except telegram.error.TelegramError as e:
+        print(f"텔레그램 API 오류(텍스트): {e}")
+    except Exception as e:
+        print(f"텔레그램 텍스트 전송 실패: {e}")
+    return False
+
 async def send_telegram_photo(bot_token, chat_id, photo_path):
     try:
         bot = telegram.Bot(token=bot_token)
         async with bot:
             await bot.send_photo(chat_id=chat_id, photo=open(photo_path, 'rb'))
-        print("텔레그램 전송 성공")
+        print("이미지 전송 성공")
         return True
     except FileNotFoundError:
         print("오류: weather_screenshot.png 파일을 찾을 수 없습니다.")
     except telegram.error.TelegramError as e:
-        print(f"텔레그램 API 오류: {e}")
+        print(f"텔레그램 API 오류(이미지): {e}")
     except Exception as e:
-        print(f"텔레그램 전송 실패: {e}")
+        print(f"텔레그램 이미지 전송 실패: {e}")
     return False
 
 async def job():
@@ -43,37 +57,54 @@ async def job():
         options.add_argument("--headless=new")
         options.add_argument("--font-render-hinting=none")
         options.add_argument('--start-maximized')
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-dev-shm-usage')
 
         # 웹드라이버 실행
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-        
-        # 네이버 날씨 페이지 열기
         driver.get(URL)
-        
+
+        # 텍스트 추출 (기온, 날씨 상태)
+        try:
+            temp_tag = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CLASS_NAME, "card_now_temperature"))
+            )
+            temperature = temp_tag.text.replace("°", "")
+        except Exception:
+            temperature = "N/A"
+
+        try:
+            status_tag = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CLASS_NAME, "card_date_emphasis"))
+            )
+            weather_status = status_tag.text
+        except Exception:
+            weather_status = "N/A"
+
+        # 텍스트 메시지 전송
+        await send_telegram_text(BOT_TOKEN, CHAT_ID, temperature, weather_status)
+
         # 특정 element 대기 및 찾기 (날씨 정보를 포함하는 div)
-        element = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.CLASS_NAME, 'section_center '))
-        )
-        
-        # element의 스크린샷 찍기
-        element_png = element.screenshot_as_png
-        
-        # 이미지 처리 및 저장
-        img = Image.open(BytesIO(element_png))
-        img.save("weather_screenshot.png")
-        print("스크린샷 촬영 성공")
-        
-        # 브라우저 종료
+        try:
+            element = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CLASS_NAME, 'section_center'))
+            )
+            # element의 스크린샷 찍기
+            element_png = element.screenshot_as_png
+            # 이미지 처리 및 저장
+            img = Image.open(BytesIO(element_png))
+            img.save("weather_screenshot.png")
+            print("스크린샷 촬영 성공")
+            # 이미지 메시지 전송
+            await send_telegram_photo(BOT_TOKEN, CHAT_ID, 'weather_screenshot.png')
+        except Exception as e:
+            print(f"스크린샷 처리/전송 중 오류: {e}")
+
         driver.quit()
-        
-        # 텔레그램으로 전송
-        success = await send_telegram_photo(BOT_TOKEN, CHAT_ID, 'weather_screenshot.png')
-        return success
-    
+        return True
     except Exception as e:
         print(f"작업 실행 중 오류 발생: {e}")
-    
-    return False
+        return False
 
 def run_job():
     success = asyncio.run(job())
@@ -94,10 +125,8 @@ def schedule_job():
         today_at_8 = datetime.datetime.now().replace(hour=8, minute=0, second=0, microsecond=0)
         random_minutes = random.randint(0, 30)
         execution_time = today_at_8 + datetime.timedelta(minutes=random_minutes)
-        
         if datetime.datetime.now() > execution_time:
             execution_time += datetime.timedelta(days=1)
-    
     print(f"실행 예정 시간: {execution_time}")
     return execution_time
 

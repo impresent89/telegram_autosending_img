@@ -40,7 +40,7 @@ async def job():
     try:
         # 크롬 브라우저 설정
         options = webdriver.ChromeOptions()
-        options.add_argument('--headless')
+        options.add_argument("--headless=new")
         options.add_argument('--start-maximized')
 
         # 웹드라이버 실행
